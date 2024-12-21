@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Shooter Mejorado</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #0a0a2a;
+            font-family: Arial, sans-serif;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            background: linear-gradient(to bottom, #000033, #000066);
+            overflow: hidden;
+            border: 2px solid #4444ff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 255, 0.3);
+        }
+
+        /* Estrellas de fondo */
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+        }
+
+        #player {
+            position: absolute;
+            bottom: 20px;
+            left: 175px;
+            width: 50px;
+            height: 50px;
+            transition: transform 0.1s;
+        }
+
+        .bullet {
+            position: absolute;
+            width: 4px;
+            height: 15px;
+            background: #00ffff;
+            border-radius: 2px;
+            box-shadow: 0 0 5px #00ffff;
+        }
+
+        .enemy {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            transition: transform 0.3s;
+        }
+
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 20px;
+            text-shadow: 0 0 5px #00ffff;
+        }
+
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 51, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 12px 24px;
+            font-size: 18px;
+            background: linear-gradient(45deg, #4444ff, #0000ff);
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            border-radius: 25px;
+            box-shadow: 0 0 10px rgba(0, 0, 255, 0.5);
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(0, 0, 255, 0.8);
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            color: #fff;
+            text-align: center;
+            width: 100%;
+            font-size: 14px;
+            text-shadow: 0 0 5px #00ffff;
+        }
+
+        /* Explosión */
+        .explosion {
+            position: absolute;
+            pointer-events: none;
+            animation: explode 0.5s forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: scale(0.5);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="score">Puntuación: 0</div>
+        <div id="player">
+            <svg width="50" height="50" viewBox="0 0 50 50">
+                <path d="M25 0 L50 50 L25 40 L0 50 Z" fill="#4444ff"/>
+                <path d="M25 10 L40 45 L25 35 L10 45 Z" fill="#0000ff"/>
+                <circle cx="25" cy="25" r="5" fill="#00ffff"/>
+            </svg>
+        </div>
+        <div id="startScreen">
+            <h1>Space Shooter</h1>
+            <button onclick="startGame()">Comenzar Juego</button>
+            <div id="controls">
+                ← → para mover<br>
+                Espacio para disparar
+            </div>
+        </div>
+        <div id="gameOverScreen" style="display: none;">
+            <h1>¡Game Over!</h1>
+            <p id="finalScore">Puntuación: 0</p>
+            <button onclick="startGame()">Jugar de nuevo</button>
+        </div>
+    </div>
+
+    <script>
+        const player = document.getElementById('player');
+        const gameContainer = document.getElementById('gameContainer');
+        const scoreElement = document.getElementById('score');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScoreElement = document.getElementById('finalScore');
+
+        let playerPos = 175;
+        let playerRotation = 0;
+        let bullets = [];
+        let enemies = [];
+        let score = 0;
+        let gameLoop;
+        let gameActive = false;
+        let keysPressed = {};
+        let lastShotTime = 0;
+
+        // Crear estrellas de fondo
+        function createStars() {
+            for (let i = 0; i < 50; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.width = Math.random() * 3 + 'px';
+                star.style.height = star.style.width;
+                star.style.left = Math.random() * 400 + 'px';
+                star.style.top = Math.random() * 600 + 'px';
+                star.style.opacity = Math.random();
+                gameContainer.appendChild(star);
+            }
+        }
+        createStars();
+
+        // SVG para enemigos
+        const enemyTypes = [
+            `<svg width="40" height="40" viewBox="0 0 40 40">
+                <path d="M20 0 L40 20 L20 40 L0 20 Z" fill="#ff4444"/>
+                <circle cx="20" cy="20" r="10" fill="#ff0000"/>
+                <circle cx="20" cy="20" r="5" fill="#ffff00"/>
+            </svg>`,
+            `<svg width="40" height="40" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="20" fill="#ff0000"/>
+                <circle cx="20" cy="20" r="15" fill="#ff4444"/>
+                <path d="M10 20 L30 20 M20 10 L20 30" stroke="#ffff00" stroke-width="3"/>
+            </svg>`,
+            `<svg width="40" height="40" viewBox="0 0 40 40">
+                <polygon points="0,20 20,0 40,20 20,40" fill="#ff4444"/>
+                <polygon points="10,20 20,10 30,20 20,30" fill="#ff0000"/>
+                <circle cx="20" cy="20" r="5" fill="#ffff00"/>
+            </svg>`
+        ];
+
+        function startGame() {
+            playerPos = 175;
+            playerRotation = 0;
+            bullets = [];
+            enemies = [];
+            score = 0;
+            scoreElement.textContent = 'Puntuación: 0';
+            
+            document.querySelectorAll('.bullet, .enemy, .explosion').forEach(el => el.remove());
+            
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            
+            gameActive = true;
+            gameLoop = setInterval(updateGame, 1000/60);
+        }
+
+        function movePlayer() {
+            if (!gameActive) return;
+            
+            const speed = 5;
+            if (keysPressed['ArrowLeft']) {
+                playerPos = Math.max(0, playerPos - speed);
+                playerRotation = Math.min(playerRotation + 2, 15);
+            } else if (keysPressed['ArrowRight']) {
+                playerPos = Math.min(350, playerPos + speed);
+                playerRotation = Math.max(playerRotation - 2, -15);
+            } else {
+                playerRotation = playerRotation * 0.8; // Volver a la posición neutral
+            }
+            
+            player.style.left = playerPos + 'px';
+            player.style.transform = `rotate(${playerRotation}deg)`;
+        }
+
+        function shoot() {
+            if (!gameActive) return;
+            
+            const currentTime = Date.now();
+            if (currentTime - lastShotTime < 250) return; // Limitar la velocidad de disparo
+            
+            lastShotTime = currentTime;
+            
+            const bullet = document.createElement('div');
+            bullet.className = 'bullet';
+            bullet.style.left = (playerPos + 23) + 'px';
+            bullet.style.bottom = '70px';
+            gameContainer.appendChild(bullet);
+            bullets.push({
+                element: bullet,
+                position: 70
+            });
+        }
+
+        function createEnemy() {
+            if (!gameActive) return;
+            
+            const enemy = document.createElement('div');
+            enemy.className = 'enemy';
+            const posX = Math.random() * (gameContainer.offsetWidth - 40);
+            enemy.style.left = posX + 'px';
+            enemy.style.top = '-40px';
+            
+            // Seleccionar un tipo aleatorio de enemigo
+            enemy.innerHTML = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+            
+            gameContainer.appendChild(enemy);
+            enemies.push({
+                element: enemy,
+                position: -40,
+                posX: posX,
+                rotation: 0
+            });
+        }
+
+        function createExplosion(x, y) {
+            const explosion = document.createElement('div');
+            explosion.className = 'explosion';
+            explosion.style.left = x + 'px';
+            explosion.style.top = y + 'px';
+            explosion.innerHTML = `
+                <svg width="40" height="40" viewBox="0 0 40 40">
+                    <circle cx="20" cy="20" r="20" fill="#ffff00"/>
+                    <circle cx="20" cy="20" r="15" fill="#ff4444"/>
+                    <circle cx="20" cy="20" r="10" fill="#ff8800"/>
+                </svg>
+            `;
+            gameContainer.appendChild(explosion);
+            setTimeout(() => explosion.remove(), 500);
+        }
+
+        function updateGame() {
+            movePlayer();
+            
+            // Actualizar balas
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                bullets[i].position += 8; // Velocidad de balas aumentada
+                bullets[i].element.style.bottom = bullets[i].position + 'px';
+                
+                if (bullets[i].position > 600) {
+                    bullets[i].element.remove();
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // Actualizar enemigos
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                if (!enemies[i]) continue;
+                
+                enemies[i].position += 2;
+                enemies[i].rotation += 2;
+                enemies[i].element.style.top = enemies[i].position + 'px';
+                enemies[i].element.style.transform = `rotate(${enemies[i].rotation}deg)`;
+                
+                // Verificar colisiones con balas
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    if (!bullets[j]) continue;
+                    
+                    const bulletRect = bullets[j].element.getBoundingClientRect();
+                    const enemyRect = enemies[i].element.getBoundingClientRect();
+                    
+                    if (checkCollision(bulletRect, enemyRect)) {
+                        score += 10;
+                        scoreElement.textContent = 'Puntuación: ' + score;
+                        
+                        createExplosion(enemies[i].posX, enemies[i].position);
+                        
+                        enemies[i].element.remove();
+                        enemies.splice(i, 1);
+                        
+                        bullets[j].element.remove();
+                        bullets.splice(j, 1);
+                        break;
+                    }
+                }
+
+                if (enemies[i] && enemies[i].position > 550) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Generar nuevos enemigos
+            if (Math.random() < 0.02) {
+                createEnemy();
+            }
+
+            // Mover estrellas
+            document.querySelectorAll('.star').forEach(star => {
+                let top = parseFloat(star.style.top);
+                top += 0.5;
+                if (top > 600) top = -2;
+                star.style.top = top + 'px';
+            });
+        }
+
+        function checkCollision(rect1, rect2) {
+            return !(rect1.right < rect2.left || 
+                    rect1.left > rect2.right || 
+                    rect1.bottom < rect2.top || 
+                    rect1.top > rect2.bottom);
+        }
+
+        function gameOver() {
+            gameActive = false;
+            clearInterval(gameLoop);
+            gameOverScreen.style.display = 'flex';
+            finalScoreElement.textContent = 'Puntuación final: ' + score;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            keysPressed[e.key] = true;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                shoot();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keysPressed[e.key] = false;
+        });
+    </script>
+</body>
+</html>

@@ -86,6 +86,10 @@
             color: #fff;
         }
 
+        #gameOverScreen {
+            z-index: 100;
+        }
+
         button {
             margin-top: 20px;
             padding: 12px 24px;
@@ -131,6 +135,75 @@
                 opacity: 0;
             }
         }
+
+        /* Controles móviles */
+        #mobileControls {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            padding: 20px;
+        }
+
+        .mobile-buttons {
+            display: flex;
+            justify-content: space-between;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .movement-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .mobile-btn {
+            width: 60px;
+            height: 60px;
+            background: rgba(68, 68, 255, 0.3);
+            border: 2px solid rgba(68, 68, 255, 0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: all 0.2s;
+        }
+
+        .mobile-btn:active {
+            background: rgba(68, 68, 255, 0.5);
+            transform: scale(0.95);
+        }
+
+        .mobile-btn.shoot {
+            background: rgba(255, 68, 68, 0.3);
+            border-color: rgba(255, 68, 68, 0.5);
+            width: 80px;
+            height: 80px;
+        }
+
+        .mobile-btn.shoot:active {
+            background: rgba(255, 68, 68, 0.5);
+        }
+
+        /* Media query para mostrar/ocultar controles */
+        @media (max-width: 768px) {
+            #mobileControls {
+                display: block;
+            }
+            
+            #gameContainer {
+                margin-bottom: 120px;
+            }
+            
+            #controls {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
@@ -156,6 +229,22 @@
             <p id="finalScore">Puntuación: 0</p>
             <button onclick="startGame()">Jugar de nuevo</button>
         </div>
+
+        <!-- Agregar después del div gameContainer -->
+        <div id="mobileControls">
+            <div class="mobile-buttons">
+                <div class="movement-buttons">
+                    <div class="mobile-btn" id="leftBtn">←</div>
+                    <div class="mobile-btn" id="rightBtn">→</div>
+                </div>
+                <div class="mobile-btn shoot" id="shootBtn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 3v3m0 12v3m-9-9h3m12 0h3"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -175,6 +264,57 @@
         let gameActive = false;
         let keysPressed = {};
         let lastShotTime = 0;
+
+        const leftBtn = document.getElementById('leftBtn');
+        const rightBtn = document.getElementById('rightBtn');
+        const shootBtn = document.getElementById('shootBtn');
+
+        let touchIntervals = {};
+
+        function setupMobileButton(button, key) {
+            button.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (key === 'Space') {
+                    shoot();
+                } else {
+                    keysPressed[key] = true;
+                }
+                
+                if (key !== 'Space') {
+                    // Mantener presionado para movimiento continuo
+                    touchIntervals[key] = setInterval(() => {
+                        movePlayer();
+                    }, 16);
+                }
+            });
+
+            button.addEventListener('touchend', () => {
+                if (key !== 'Space') {
+                    keysPressed[key] = false;
+                    clearInterval(touchIntervals[key]);
+                }
+            });
+
+            button.addEventListener('touchcancel', () => {
+                if (key !== 'Space') {
+                    keysPressed[key] = false;
+                    clearInterval(touchIntervals[key]);
+                }
+            });
+        }
+
+        // Configurar los botones táctiles
+        setupMobileButton(leftBtn, 'ArrowLeft');
+        setupMobileButton(rightBtn, 'ArrowRight');
+        setupMobileButton(shootBtn, 'Space');
+
+        // Agregar limpieza de intervalos al game over
+        const originalGameOver = gameOver;
+        gameOver = function() {
+            Object.values(touchIntervals).forEach(clearInterval);
+            touchIntervals = {};
+            originalGameOver();
+        };
 
         // Crear estrellas de fondo
         function createStars() {
